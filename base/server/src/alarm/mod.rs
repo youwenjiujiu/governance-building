@@ -1,8 +1,18 @@
 use chrono::Utc;
+use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::enums::{AlarmCategory, AlarmSeverity, AlarmState};
+
+/// Information about a newly created alarm, returned from `check_point`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AlarmEvent {
+    pub alarm_code: String,
+    pub point_id: Uuid,
+    pub severity: String,
+    pub title: String,
+}
 
 /// Holds alarm engine state, including suppression tracking.
 #[derive(Debug, Clone)]
@@ -26,7 +36,7 @@ impl AlarmEngine {
         point_id: Uuid,
         value: f64,
         pool: &PgPool,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<Option<AlarmEvent>, sqlx::Error> {
         // Fetch the point's alarm configuration
         let point_row: Option<PointAlarmConfig> = sqlx::query_as(
             r#"SELECT id, building_id, equipment_id, zone_id, code, name,
@@ -40,7 +50,7 @@ impl AlarmEngine {
 
         let point = match point_row {
             Some(p) if p.alarm_enabled => p,
-            _ => return Ok(()), // alarm not enabled or point not found
+            _ => return Ok(None), // alarm not enabled or point not found
         };
 
         let deadband = point.alarm_deadband.unwrap_or(0.0);
@@ -77,7 +87,7 @@ impl AlarmEngine {
         // Check for existing active alarm on this point
         let existing_alarm: Option<ExistingAlarm> = sqlx::query_as(
             r#"SELECT id, state, triggered_at FROM alarms
-            WHERE point_id = $1 AND state IN ('active_unacked', 'active_acked')
+            WHERE point_id = $1 AND state IN ('ACTIVE_UNACKED', 'ACTIVE_ACKED')
             ORDER BY triggered_at DESC LIMIT 1"#,
         )
         .bind(point_id)
@@ -105,12 +115,16 @@ impl AlarmEngine {
                     tracing::debug!(
                         "Alarm suppressed for point {point_id}: within suppression window"
                     );
-                    return Ok(());
+                    return Ok(None);
                 }
 
                 let alarm_id = Uuid::new_v4();
                 let alarm_code = format!("ALM-{}-{}", point.code, alarm_type.to_uppercase());
                 let title = format!("{} - {} alarm (value: {value}, threshold: {threshold})", point.name, alarm_type);
+                let severity_str = serde_json::to_value(&severity)
+                    .ok()
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_else(|| format!("{severity:?}").to_lowercase());
 
                 sqlx::query(
                     r#"INSERT INTO alarms (id, building_id, point_id, equipment_id, zone_id,
@@ -142,6 +156,13 @@ impl AlarmEngine {
                 .await?;
 
                 tracing::info!("Created alarm {alarm_code} for point {point_id}");
+
+                return Ok(Some(AlarmEvent {
+                    alarm_code,
+                    point_id,
+                    severity: severity_str,
+                    title,
+                }));
             }
 
             // Threshold still breached and active alarm exists -> update repeat count
@@ -174,8 +195,8 @@ impl AlarmEngine {
                     sqlx::query(
                         r#"UPDATE alarms SET
                             state = CASE
-                                WHEN state = 'active_unacked' THEN 'cleared_unacked'::alarm_state
-                                WHEN state = 'active_acked' THEN 'cleared_acked'::alarm_state
+                                WHEN state = 'ACTIVE_UNACKED' THEN 'CLEARED_UNACKED'::alarm_state
+                                WHEN state = 'ACTIVE_ACKED' THEN 'CLEARED_ACKED'::alarm_state
                                 ELSE state
                             END,
                             cleared_at = $2,
@@ -196,7 +217,7 @@ impl AlarmEngine {
             (None, None) => {}
         }
 
-        Ok(())
+        Ok(None)
     }
 }
 

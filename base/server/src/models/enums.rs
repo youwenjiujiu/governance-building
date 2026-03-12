@@ -2,7 +2,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "building_type", rename_all = "snake_case")]
+#[sqlx(type_name = "org_type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OrgType {
+    Enterprise,
+    Subsidiary,
+    PropertyMgmt,
+    ServiceProvider,
+    Government,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "building_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BuildingType {
     Office,
     Hotel,
@@ -23,7 +34,7 @@ pub enum BuildingType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "climate_zone", rename_all = "snake_case")]
+#[sqlx(type_name = "climate_zone", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ClimateZone {
     SevereCold,
     Cold,
@@ -36,7 +47,20 @@ pub enum ClimateZone {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "system_type", rename_all = "snake_case")]
+#[sqlx(type_name = "floor_type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum FloorType {
+    Standard,
+    Mechanical,
+    Refuge,
+    Lobby,
+    Roof,
+    Parking,
+    BasementMechanical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "system_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemType {
     Hvac,
     Lighting,
@@ -68,7 +92,7 @@ pub enum SystemType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "equipment_type", rename_all = "snake_case")]
+#[sqlx(type_name = "equipment_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EquipmentType {
     Chiller,
     Boiler,
@@ -138,7 +162,7 @@ pub enum EquipmentType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "space_type", rename_all = "snake_case")]
+#[sqlx(type_name = "space_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpaceType {
     Office,
     MeetingRoom,
@@ -185,7 +209,7 @@ pub enum SpaceType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "point_data_type", rename_all = "snake_case")]
+#[sqlx(type_name = "point_data_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PointDataType {
     Float,
     Int,
@@ -197,7 +221,7 @@ pub enum PointDataType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "point_access", rename_all = "snake_case")]
+#[sqlx(type_name = "point_access", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PointAccess {
     ReadOnly,
     ReadWrite,
@@ -206,7 +230,7 @@ pub enum PointAccess {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "source_protocol", rename_all = "snake_case")]
+#[sqlx(type_name = "source_protocol", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SourceProtocol {
     Bacnet,
     ModbusTcp,
@@ -225,7 +249,7 @@ pub enum SourceProtocol {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "alarm_severity", rename_all = "snake_case")]
+#[sqlx(type_name = "alarm_severity", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AlarmSeverity {
     Critical,
     Major,
@@ -236,7 +260,7 @@ pub enum AlarmSeverity {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "alarm_category", rename_all = "snake_case")]
+#[sqlx(type_name = "alarm_category", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AlarmCategory {
     Fire,
     Security,
@@ -267,7 +291,7 @@ pub enum AlarmCategory {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "alarm_state", rename_all = "snake_case")]
+#[sqlx(type_name = "alarm_state", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AlarmState {
     ActiveUnacked,
     ActiveAcked,
@@ -278,7 +302,7 @@ pub enum AlarmState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "work_order_status", rename_all = "snake_case")]
+#[sqlx(type_name = "work_order_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderStatus {
     Open,
     Assigned,
@@ -294,7 +318,7 @@ pub enum WorkOrderStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "work_order_type", rename_all = "snake_case")]
+#[sqlx(type_name = "work_order_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderType {
     Corrective,
     Preventive,
@@ -307,7 +331,7 @@ pub enum WorkOrderType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "work_order_change_type", rename_all = "snake_case")]
+#[sqlx(type_name = "work_order_change_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderChangeType {
     Maintenance,
     Emergency,
@@ -318,7 +342,7 @@ pub enum WorkOrderChangeType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "risk_level", rename_all = "snake_case")]
+#[sqlx(type_name = "risk_level", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RiskLevel {
     Low,
     Medium,
@@ -328,7 +352,7 @@ pub enum RiskLevel {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "cab_approval", rename_all = "snake_case")]
+#[sqlx(type_name = "cab_approval", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CabApproval {
     NotRequired,
     Pending,
@@ -338,7 +362,7 @@ pub enum CabApproval {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "schedule_type", rename_all = "snake_case")]
+#[sqlx(type_name = "schedule_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ScheduleType {
     Weekly,
     Calendar,
@@ -348,7 +372,7 @@ pub enum ScheduleType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "notification_channel", rename_all = "snake_case")]
+#[sqlx(type_name = "notification_channel", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NotificationChannel {
     Email,
     Sms,
@@ -363,7 +387,7 @@ pub enum NotificationChannel {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "tenant_type", rename_all = "snake_case")]
+#[sqlx(type_name = "tenant_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TenantType {
     Enterprise,
     Individual,
@@ -372,7 +396,7 @@ pub enum TenantType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "tenant_status", rename_all = "snake_case")]
+#[sqlx(type_name = "tenant_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TenantStatus {
     Active,
     Expired,
@@ -381,7 +405,7 @@ pub enum TenantStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "lease_status", rename_all = "snake_case")]
+#[sqlx(type_name = "lease_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LeaseStatus {
     Active,
     Expired,
@@ -391,7 +415,7 @@ pub enum LeaseStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "billing_type", rename_all = "snake_case")]
+#[sqlx(type_name = "billing_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BillingType {
     ByArea,
     ByCooling,
@@ -402,7 +426,7 @@ pub enum BillingType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "billing_status", rename_all = "snake_case")]
+#[sqlx(type_name = "billing_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BillingStatus {
     Draft,
     Confirmed,
@@ -411,7 +435,7 @@ pub enum BillingStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "patient_impact", rename_all = "snake_case")]
+#[sqlx(type_name = "patient_impact", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PatientImpact {
     None,
     Low,
@@ -422,7 +446,7 @@ pub enum PatientImpact {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "affected_scope", rename_all = "snake_case")]
+#[sqlx(type_name = "affected_scope", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AffectedScope {
     Equipment,
     Zone,
@@ -433,7 +457,7 @@ pub enum AffectedScope {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "redundancy_type", rename_all = "snake_case")]
+#[sqlx(type_name = "redundancy_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RedundancyType {
     NPlus1,
     TwoN,
@@ -442,7 +466,7 @@ pub enum RedundancyType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "emission_type", rename_all = "snake_case")]
+#[sqlx(type_name = "emission_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EmissionType {
     Fume,
     ExhaustGas,
@@ -452,7 +476,7 @@ pub enum EmissionType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "traffic_sensor_type", rename_all = "snake_case")]
+#[sqlx(type_name = "traffic_sensor_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TrafficSensorType {
     Infrared,
     Video,
@@ -462,7 +486,7 @@ pub enum TrafficSensorType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "traffic_direction", rename_all = "snake_case")]
+#[sqlx(type_name = "traffic_direction", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TrafficDirection {
     In,
     Out,
@@ -473,7 +497,7 @@ pub enum TrafficDirection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "entity_status", rename_all = "snake_case")]
+#[sqlx(type_name = "entity_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EntityStatus {
     Active,
     Inactive,
@@ -484,7 +508,7 @@ pub enum EntityStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "point_class", rename_all = "snake_case")]
+#[sqlx(type_name = "point_class", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PointClass {
     Sensor,
     Command,
@@ -497,7 +521,7 @@ pub enum PointClass {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "point_quality", rename_all = "snake_case")]
+#[sqlx(type_name = "point_quality", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PointQuality {
     Good,
     Uncertain,
@@ -509,7 +533,7 @@ pub enum PointQuality {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "condition_type", rename_all = "snake_case")]
+#[sqlx(type_name = "condition_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ConditionType {
     HiHiLimit,
     HiLimit,
@@ -527,7 +551,7 @@ pub enum ConditionType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "work_order_priority", rename_all = "snake_case")]
+#[sqlx(type_name = "work_order_priority", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderPriority {
     Emergency,
     High,
@@ -538,7 +562,7 @@ pub enum WorkOrderPriority {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "work_order_source", rename_all = "snake_case")]
+#[sqlx(type_name = "work_order_source", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderSource {
     Alarm,
     Manual,
@@ -550,7 +574,7 @@ pub enum WorkOrderSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "audit_action", rename_all = "snake_case")]
+#[sqlx(type_name = "audit_action", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AuditAction {
     Create,
     Update,
@@ -572,7 +596,7 @@ pub enum AuditAction {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "audit_result", rename_all = "snake_case")]
+#[sqlx(type_name = "audit_result", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AuditResult {
     Success,
     Failure,
@@ -581,7 +605,7 @@ pub enum AuditResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "notification_type", rename_all = "snake_case")]
+#[sqlx(type_name = "notification_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NotificationType {
     Alarm,
     WorkOrder,
@@ -594,7 +618,7 @@ pub enum NotificationType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "notification_priority", rename_all = "snake_case")]
+#[sqlx(type_name = "notification_priority", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NotificationPriority {
     Urgent,
     High,
@@ -604,7 +628,7 @@ pub enum NotificationPriority {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "send_state", rename_all = "snake_case")]
+#[sqlx(type_name = "send_state", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SendState {
     Pending,
     Sending,

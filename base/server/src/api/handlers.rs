@@ -5,9 +5,9 @@ use axum::response::IntoResponse;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::api::state::AppState;
 use crate::models::entities::*;
 use crate::models::enums::*;
 
@@ -56,7 +56,7 @@ fn internal_error(e: impl std::fmt::Display) -> (StatusCode, Json<ErrorResponse>
 // ─── Organizations ───────────────────────────────────────────────────────────
 
 pub async fn list_organizations(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<ListResponse<Organization>>, (StatusCode, Json<ErrorResponse>)> {
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM organizations")
@@ -82,7 +82,7 @@ pub async fn list_organizations(
 }
 
 pub async fn create_organization(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateOrganization>,
 ) -> Result<(StatusCode, Json<Organization>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -90,16 +90,17 @@ pub async fn create_organization(
     let creator = Uuid::nil(); // placeholder, would come from auth
 
     let org: Organization = sqlx::query_as(
-        r#"INSERT INTO organizations (id, code, name, name_en, parent_id, legal_entity, tax_id,
+        r#"INSERT INTO organizations (id, code, name, name_en, type, parent_id, legal_entity, tax_id,
             country, timezone, locale, logo_url, contact_email, contact_phone, metadata,
             status, created_at, updated_at, created_by, updated_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
         RETURNING *"#,
     )
     .bind(id)
     .bind(&body.code)
     .bind(&body.name)
     .bind(&body.name_en)
+    .bind(&body.org_type)
     .bind(body.parent_id)
     .bind(&body.legal_entity)
     .bind(&body.tax_id)
@@ -133,7 +134,7 @@ pub struct BuildingFilter {
 }
 
 pub async fn list_buildings(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<BuildingFilter>,
 ) -> Result<Json<ListResponse<Building>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -191,7 +192,7 @@ pub async fn list_buildings(
 }
 
 pub async fn create_building(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateBuilding>,
 ) -> Result<(StatusCode, Json<Building>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -248,7 +249,7 @@ pub struct ZoneFilter {
 }
 
 pub async fn list_zones(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<ZoneFilter>,
 ) -> Result<Json<ListResponse<Zone>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -306,7 +307,7 @@ pub async fn list_zones(
 }
 
 pub async fn create_zone(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateZone>,
 ) -> Result<(StatusCode, Json<Zone>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -354,7 +355,7 @@ pub struct EquipmentFilter {
 }
 
 pub async fn list_equipment(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<EquipmentFilter>,
 ) -> Result<Json<ListResponse<Equipment>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -412,7 +413,7 @@ pub async fn list_equipment(
 }
 
 pub async fn create_equipment(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateEquipment>,
 ) -> Result<(StatusCode, Json<Equipment>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -465,7 +466,7 @@ pub struct PointFilter {
 }
 
 pub async fn list_points(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<PointFilter>,
 ) -> Result<Json<ListResponse<Point>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -530,7 +531,7 @@ pub async fn list_points(
 }
 
 pub async fn create_point(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreatePoint>,
 ) -> Result<(StatusCode, Json<Point>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -543,7 +544,7 @@ pub async fn create_point(
             alarm_enabled, alarm_hi_hi, alarm_hi, alarm_lo, alarm_lo_lo, alarm_deadband,
             alarm_delay_s, trend_enabled, trend_interval_s, trend_retention_days,
             display_group, display_order, is_virtual, calc_expression,
-            metadata, status, current_value, current_quality, current_timestamp,
+            metadata, status, current_value, current_quality, value_timestamp,
             created_at, updated_at)
         VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL,NULL,NULL,NULL,NULL,
             $15,NULL,$16,$17,NULL,NULL,NULL,$18,NULL,NULL,NULL,NULL,NULL,NULL,$19,$20,NULL,NULL,NULL,$21,$22)
@@ -588,7 +589,7 @@ pub struct PointValueQuery {
 }
 
 pub async fn get_point_values(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Path(point_id): Path<Uuid>,
     Query(params): Query<PointValueQuery>,
 ) -> Result<Json<Vec<PointValue>>, (StatusCode, Json<ErrorResponse>)> {
@@ -604,12 +605,11 @@ pub async fn get_point_values(
                 r#"SELECT
                     point_id,
                     time_bucket('5 minutes', ts) AS ts,
-                    AVG(value_float) AS value_float,
-                    NULL::bigint AS value_int,
+                    AVG(value_numeric) AS value_numeric,
+                    NULL::varchar AS value_text,
                     NULL::boolean AS value_bool,
-                    NULL::varchar AS value_string,
                     NULL::jsonb AS value_json,
-                    'good' AS quality
+                    'GOOD'::point_quality AS quality
                 FROM point_values
                 WHERE point_id = $1 AND ts >= $2 AND ts <= $3
                 GROUP BY point_id, time_bucket('5 minutes', ts)
@@ -627,12 +627,11 @@ pub async fn get_point_values(
                 r#"SELECT
                     point_id,
                     time_bucket('1 hour', ts) AS ts,
-                    AVG(value_float) AS value_float,
-                    NULL::bigint AS value_int,
+                    AVG(value_numeric) AS value_numeric,
+                    NULL::varchar AS value_text,
                     NULL::boolean AS value_bool,
-                    NULL::varchar AS value_string,
                     NULL::jsonb AS value_json,
-                    'good' AS quality
+                    'GOOD'::point_quality AS quality
                 FROM point_values
                 WHERE point_id = $1 AND ts >= $2 AND ts <= $3
                 GROUP BY point_id, time_bucket('1 hour', ts)
@@ -650,12 +649,11 @@ pub async fn get_point_values(
                 r#"SELECT
                     point_id,
                     time_bucket('1 day', ts) AS ts,
-                    AVG(value_float) AS value_float,
-                    NULL::bigint AS value_int,
+                    AVG(value_numeric) AS value_numeric,
+                    NULL::varchar AS value_text,
                     NULL::boolean AS value_bool,
-                    NULL::varchar AS value_string,
                     NULL::jsonb AS value_json,
-                    'good' AS quality
+                    'GOOD'::point_quality AS quality
                 FROM point_values
                 WHERE point_id = $1 AND ts >= $2 AND ts <= $3
                 GROUP BY point_id, time_bucket('1 day', ts)
@@ -671,7 +669,8 @@ pub async fn get_point_values(
         _ => {
             // raw
             sqlx::query_as(
-                r#"SELECT * FROM point_values
+                r#"SELECT point_id, ts, value_numeric, value_text, value_bool, value_json, quality
+                FROM point_values
                 WHERE point_id = $1 AND ts >= $2 AND ts <= $3
                 ORDER BY ts LIMIT 10000"#,
             )
@@ -699,7 +698,7 @@ pub struct AlarmFilter {
 }
 
 pub async fn list_alarms(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<AlarmFilter>,
 ) -> Result<Json<ListResponse<Alarm>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -764,7 +763,7 @@ pub async fn list_alarms(
 }
 
 pub async fn create_alarm(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateAlarm>,
 ) -> Result<(StatusCode, Json<Alarm>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -812,7 +811,7 @@ pub struct AckBody {
 }
 
 pub async fn acknowledge_alarm(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Path(alarm_id): Path<Uuid>,
     Json(body): Json<AckBody>,
 ) -> Result<Json<Alarm>, (StatusCode, Json<ErrorResponse>)> {
@@ -821,8 +820,8 @@ pub async fn acknowledge_alarm(
     let alarm: Alarm = sqlx::query_as(
         r#"UPDATE alarms SET
             state = CASE
-                WHEN state = 'active_unacked' THEN 'active_acked'::alarm_state
-                WHEN state = 'cleared_unacked' THEN 'cleared_acked'::alarm_state
+                WHEN state = 'ACTIVE_UNACKED' THEN 'ACTIVE_ACKED'::alarm_state
+                WHEN state = 'CLEARED_UNACKED' THEN 'CLEARED_ACKED'::alarm_state
                 ELSE state
             END,
             acked_at = $2,
@@ -850,7 +849,7 @@ pub struct ResolveBody {
 }
 
 pub async fn resolve_alarm(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Path(alarm_id): Path<Uuid>,
     Json(body): Json<ResolveBody>,
 ) -> Result<Json<Alarm>, (StatusCode, Json<ErrorResponse>)> {
@@ -858,7 +857,7 @@ pub async fn resolve_alarm(
 
     let alarm: Alarm = sqlx::query_as(
         r#"UPDATE alarms SET
-            state = 'closed'::alarm_state,
+            state = 'CLOSED'::alarm_state,
             closed_at = $2,
             closed_by = $3,
             close_note = $4,
@@ -889,7 +888,7 @@ pub struct WorkOrderFilter {
 }
 
 pub async fn list_work_orders(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<WorkOrderFilter>,
 ) -> Result<Json<ListResponse<WorkOrder>>, (StatusCode, Json<ErrorResponse>)> {
     let page = params.page.unwrap_or(1).max(1);
@@ -938,7 +937,7 @@ pub async fn list_work_orders(
 }
 
 pub async fn create_work_order(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateWorkOrder>,
 ) -> Result<(StatusCode, Json<WorkOrder>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -988,7 +987,7 @@ pub async fn create_work_order(
 // ─── Schedules ───────────────────────────────────────────────────────────────
 
 pub async fn list_schedules(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<ListResponse<Schedule>>, (StatusCode, Json<ErrorResponse>)> {
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM schedules")
@@ -1013,7 +1012,7 @@ pub async fn list_schedules(
 }
 
 pub async fn create_schedule(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateSchedule>,
 ) -> Result<(StatusCode, Json<Schedule>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -1056,7 +1055,7 @@ pub async fn create_schedule(
 // ─── Tenants ─────────────────────────────────────────────────────────────────
 
 pub async fn list_tenants(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<ListResponse<Tenant>>, (StatusCode, Json<ErrorResponse>)> {
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tenants")
@@ -1081,7 +1080,7 @@ pub async fn list_tenants(
 }
 
 pub async fn create_tenant(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(body): Json<CreateTenant>,
 ) -> Result<(StatusCode, Json<Tenant>), (StatusCode, Json<ErrorResponse>)> {
     let id = Uuid::new_v4();
@@ -1111,13 +1110,470 @@ pub async fn create_tenant(
     Ok((StatusCode::CREATED, Json(tenant)))
 }
 
-// ─── WebSocket ───────────────────────────────────────────────────────────────
+// ─── Sites ───────────────────────────────────────────────────────────────────
 
-pub async fn ws_points_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_ws_connection)
+#[derive(Debug, Deserialize)]
+pub struct SiteFilter {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub org_id: Option<Uuid>,
 }
 
-async fn handle_ws_connection(mut socket: WebSocket) {
+pub async fn list_sites(
+    State(AppState { pool, .. }): State<AppState>,
+    Query(params): Query<SiteFilter>,
+) -> Result<Json<ListResponse<Site>>, (StatusCode, Json<ErrorResponse>)> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).min(100);
+    let offset = (page - 1) * per_page;
+
+    let (total, rows) = if let Some(org_id) = params.org_id {
+        let t: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sites WHERE org_id = $1")
+            .bind(org_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(internal_error)?;
+        let r: Vec<Site> = sqlx::query_as(
+            "SELECT * FROM sites WHERE org_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(org_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    } else {
+        let t: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sites")
+            .fetch_one(&pool)
+            .await
+            .map_err(internal_error)?;
+        let r: Vec<Site> = sqlx::query_as(
+            "SELECT * FROM sites ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    };
+
+    Ok(Json(ListResponse {
+        data: rows,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+pub async fn create_site(
+    State(AppState { pool, .. }): State<AppState>,
+    Json(body): Json<CreateSite>,
+) -> Result<(StatusCode, Json<Site>), (StatusCode, Json<ErrorResponse>)> {
+    let id = Uuid::new_v4();
+    let now = Utc::now();
+    let creator = Uuid::nil();
+
+    let site: Site = sqlx::query_as(
+        r#"INSERT INTO sites (id, org_id, code, name, name_en, address, city, province, country,
+            postal_code, latitude, longitude, altitude, timezone, climate_zone, total_area,
+            metadata, status, created_at, updated_at, created_by, updated_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        RETURNING *"#,
+    )
+    .bind(id)
+    .bind(body.org_id)
+    .bind(&body.code)
+    .bind(&body.name)
+    .bind(&body.name_en)
+    .bind(&body.address)
+    .bind(&body.city)
+    .bind(&body.province)
+    .bind(&body.country)
+    .bind(&body.postal_code)
+    .bind(body.latitude)
+    .bind(body.longitude)
+    .bind(&body.timezone)
+    .bind(&body.climate_zone)
+    .bind(body.total_area)
+    .bind(&body.metadata)
+    .bind(EntityStatus::Active)
+    .bind(now)
+    .bind(now)
+    .bind(creator)
+    .bind(creator)
+    .fetch_one(&pool)
+    .await
+    .map_err(internal_error)?;
+
+    Ok((StatusCode::CREATED, Json(site)))
+}
+
+// ─── Floors ──────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct FloorFilter {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub building_id: Option<Uuid>,
+}
+
+pub async fn list_floors(
+    State(AppState { pool, .. }): State<AppState>,
+    Query(params): Query<FloorFilter>,
+) -> Result<Json<ListResponse<Floor>>, (StatusCode, Json<ErrorResponse>)> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).min(100);
+    let offset = (page - 1) * per_page;
+
+    let (total, rows) = if let Some(building_id) = params.building_id {
+        let t: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM floors WHERE building_id = $1")
+                .bind(building_id)
+                .fetch_one(&pool)
+                .await
+                .map_err(internal_error)?;
+        let r: Vec<Floor> = sqlx::query_as(
+            "SELECT * FROM floors WHERE building_id = $1 ORDER BY sort_order ASC LIMIT $2 OFFSET $3",
+        )
+        .bind(building_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    } else {
+        let t: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM floors")
+            .fetch_one(&pool)
+            .await
+            .map_err(internal_error)?;
+        let r: Vec<Floor> = sqlx::query_as(
+            "SELECT * FROM floors ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    };
+
+    Ok(Json(ListResponse {
+        data: rows,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+pub async fn create_floor(
+    State(AppState { pool, .. }): State<AppState>,
+    Json(body): Json<CreateFloor>,
+) -> Result<(StatusCode, Json<Floor>), (StatusCode, Json<ErrorResponse>)> {
+    let id = Uuid::new_v4();
+    let now = Utc::now();
+
+    let floor: Floor = sqlx::query_as(
+        r#"INSERT INTO floors (id, building_id, code, name, sort_order, elevation, floor_height,
+            gross_area, usable_area, is_underground, floor_type, metadata, status, created_at, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL,$11,$12,$13,$14)
+        RETURNING *"#,
+    )
+    .bind(id)
+    .bind(body.building_id)
+    .bind(&body.code)
+    .bind(&body.name)
+    .bind(body.sort_order)
+    .bind(body.elevation)
+    .bind(body.floor_height)
+    .bind(body.gross_area)
+    .bind(body.usable_area)
+    .bind(body.is_underground)
+    .bind(&body.metadata)
+    .bind(EntityStatus::Active)
+    .bind(now)
+    .bind(now)
+    .fetch_one(&pool)
+    .await
+    .map_err(internal_error)?;
+
+    Ok((StatusCode::CREATED, Json(floor)))
+}
+
+// ─── Systems ─────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SystemFilter {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub building_id: Option<Uuid>,
+}
+
+pub async fn list_systems(
+    State(AppState { pool, .. }): State<AppState>,
+    Query(params): Query<SystemFilter>,
+) -> Result<Json<ListResponse<System>>, (StatusCode, Json<ErrorResponse>)> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).min(100);
+    let offset = (page - 1) * per_page;
+
+    let (total, rows) = if let Some(building_id) = params.building_id {
+        let t: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM systems WHERE building_id = $1")
+                .bind(building_id)
+                .fetch_one(&pool)
+                .await
+                .map_err(internal_error)?;
+        let r: Vec<System> = sqlx::query_as(
+            "SELECT * FROM systems WHERE building_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(building_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    } else {
+        let t: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM systems")
+            .fetch_one(&pool)
+            .await
+            .map_err(internal_error)?;
+        let r: Vec<System> = sqlx::query_as(
+            "SELECT * FROM systems ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_error)?;
+        (t.0, r)
+    };
+
+    Ok(Json(ListResponse {
+        data: rows,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+pub async fn create_system(
+    State(AppState { pool, .. }): State<AppState>,
+    Json(body): Json<CreateSystem>,
+) -> Result<(StatusCode, Json<System>), (StatusCode, Json<ErrorResponse>)> {
+    let id = Uuid::new_v4();
+    let now = Utc::now();
+
+    let system: System = sqlx::query_as(
+        r#"INSERT INTO systems (id, building_id, code, name, system_type, sub_type, description,
+            design_capacity, commissioning_date, metadata, status, created_at, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        RETURNING *"#,
+    )
+    .bind(id)
+    .bind(body.building_id)
+    .bind(&body.code)
+    .bind(&body.name)
+    .bind(&body.system_type)
+    .bind(&body.sub_type)
+    .bind(&body.description)
+    .bind(&body.design_capacity)
+    .bind(body.commissioning_date)
+    .bind(&body.metadata)
+    .bind(EntityStatus::Active)
+    .bind(now)
+    .bind(now)
+    .fetch_one(&pool)
+    .await
+    .map_err(internal_error)?;
+
+    Ok((StatusCode::CREATED, Json(system)))
+}
+
+// ─── GET by ID ───────────────────────────────────────────────────────────────
+
+pub async fn get_organization(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Organization>, (StatusCode, Json<ErrorResponse>)> {
+    let org: Organization = sqlx::query_as("SELECT * FROM organizations WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Organization not found".to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(org))
+}
+
+pub async fn get_building(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Building>, (StatusCode, Json<ErrorResponse>)> {
+    let building: Building = sqlx::query_as("SELECT * FROM buildings WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Building not found".to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(building))
+}
+
+pub async fn get_equipment(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Equipment>, (StatusCode, Json<ErrorResponse>)> {
+    let equip: Equipment = sqlx::query_as("SELECT * FROM equipment WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Equipment not found".to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(equip))
+}
+
+pub async fn get_point(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Point>, (StatusCode, Json<ErrorResponse>)> {
+    let point: Point = sqlx::query_as("SELECT * FROM points WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Point not found".to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(point))
+}
+
+pub async fn get_alarm(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Alarm>, (StatusCode, Json<ErrorResponse>)> {
+    let alarm: Alarm = sqlx::query_as("SELECT * FROM alarms WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Alarm not found".to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(alarm))
+}
+
+// ─── Soft DELETE ─────────────────────────────────────────────────────────────
+
+pub async fn delete_building(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    let result = sqlx::query("UPDATE buildings SET status = 'DELETED' WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(internal_error)?;
+
+    if result.rows_affected() == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "Building not found".to_string(),
+            }),
+        ));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_equipment(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    let result = sqlx::query("UPDATE equipment SET status = 'DELETED' WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(internal_error)?;
+
+    if result.rows_affected() == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "Equipment not found".to_string(),
+            }),
+        ));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_point(
+    State(AppState { pool, .. }): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    let result = sqlx::query("UPDATE points SET status = 'DELETED' WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(internal_error)?;
+
+    if result.rows_affected() == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "Point not found".to_string(),
+            }),
+        ));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ─── WebSocket ───────────────────────────────────────────────────────────────
+
+pub async fn ws_points_handler(
+    State(state): State<AppState>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    let rx = state.broadcast_tx.subscribe();
+    ws.on_upgrade(move |socket| handle_ws_connection(socket, rx))
+}
+
+async fn handle_ws_connection(
+    mut socket: WebSocket,
+    mut rx: tokio::sync::broadcast::Receiver<String>,
+) {
     // Send a welcome message
     if socket
         .send(Message::Text(
@@ -1131,26 +1587,40 @@ async fn handle_ws_connection(mut socket: WebSocket) {
         return;
     }
 
-    // Keep the connection alive: read messages from client (e.g., subscribe/unsubscribe requests)
-    // In production, this would subscribe to an internal broadcast channel from the MQTT handler
-    while let Some(msg) = socket.recv().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                // Echo back as acknowledgment; real impl would filter by point_id subscriptions
-                let ack = serde_json::json!({
-                    "type": "ack",
-                    "message": text.to_string()
-                });
-                if socket
-                    .send(Message::Text(ack.to_string().into()))
-                    .await
-                    .is_err()
-                {
-                    break;
+    loop {
+        tokio::select! {
+            // Forward broadcast messages to the WebSocket client
+            result = rx.recv() => {
+                match result {
+                    Ok(msg) => {
+                        if socket.send(Message::Text(msg.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("WebSocket client lagged, skipped {n} messages");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        break;
+                    }
                 }
             }
-            Ok(Message::Close(_)) | Err(_) => break,
-            _ => {}
+            // Handle incoming messages from the WebSocket client
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        let ack = serde_json::json!({
+                            "type": "ack",
+                            "message": text.to_string()
+                        });
+                        if socket.send(Message::Text(ack.to_string().into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                    _ => {}
+                }
+            }
         }
     }
 }

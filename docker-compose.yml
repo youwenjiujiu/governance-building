@@ -1,0 +1,35 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: governance_building
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./base/server/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  governance-base:
+    build:
+      context: ./base/server
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@timescaledb:5432/governance_building
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      SERVER_PORT: "3001"
+    depends_on:
+      - timescaledb
+      - mosquitto
+
+volumes:
+  timescaledb-data:

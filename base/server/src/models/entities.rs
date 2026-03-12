@@ -13,6 +13,9 @@ pub struct Organization {
     pub code: String,
     pub name: String,
     pub name_en: Option<String>,
+    #[sqlx(rename = "type")]
+    #[serde(rename = "type")]
+    pub org_type: OrgType,
     pub parent_id: Option<Uuid>,
     pub legal_entity: Option<String>,
     pub tax_id: Option<String>,
@@ -35,6 +38,8 @@ pub struct CreateOrganization {
     pub code: String,
     pub name: String,
     pub name_en: Option<String>,
+    #[serde(rename = "type")]
+    pub org_type: OrgType,
     pub parent_id: Option<Uuid>,
     pub legal_entity: Option<String>,
     pub tax_id: Option<String>,
@@ -73,6 +78,25 @@ pub struct Site {
     pub updated_at: DateTime<Utc>,
     pub created_by: Uuid,
     pub updated_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSite {
+    pub org_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub name_en: Option<String>,
+    pub address: String,
+    pub city: String,
+    pub province: Option<String>,
+    pub country: String,
+    pub postal_code: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub timezone: String,
+    pub climate_zone: Option<ClimateZone>,
+    pub total_area: Option<f64>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 // ─── Building ────────────────────────────────────────────────────────────────
@@ -143,10 +167,25 @@ pub struct Floor {
     pub gross_area: Option<f64>,
     pub usable_area: Option<f64>,
     pub is_underground: bool,
+    pub floor_type: Option<FloorType>,
     pub metadata: Option<serde_json::Value>,
     pub status: EntityStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFloor {
+    pub building_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub sort_order: i32,
+    pub elevation: Option<f64>,
+    pub floor_height: Option<f64>,
+    pub gross_area: Option<f64>,
+    pub usable_area: Option<f64>,
+    pub is_underground: bool,
+    pub metadata: Option<serde_json::Value>,
 }
 
 // ─── Zone ────────────────────────────────────────────────────────────────────
@@ -207,6 +246,19 @@ pub struct System {
     pub status: EntityStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSystem {
+    pub building_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub system_type: SystemType,
+    pub sub_type: Option<String>,
+    pub description: Option<String>,
+    pub design_capacity: Option<serde_json::Value>,
+    pub commissioning_date: Option<NaiveDate>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 // ─── Equipment ───────────────────────────────────────────────────────────────
@@ -324,7 +376,7 @@ pub struct Point {
     pub status: EntityStatus,
     pub current_value: Option<String>,
     pub current_quality: Option<PointQuality>,
-    pub current_timestamp: Option<DateTime<Utc>>,
+    pub value_timestamp: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -870,10 +922,9 @@ pub struct EnergyMeter {
 pub struct PointValue {
     pub point_id: Uuid,
     pub ts: DateTime<Utc>,
-    pub value_float: Option<f64>,
-    pub value_int: Option<i64>,
+    pub value_numeric: Option<f64>,
+    pub value_text: Option<String>,
     pub value_bool: Option<bool>,
-    pub value_string: Option<String>,
     pub value_json: Option<serde_json::Value>,
-    pub quality: String,
+    pub quality: PointQuality,
 }

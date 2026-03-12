@@ -1,10 +1,11 @@
 use governance_base::alarm::AlarmEngine;
-use governance_base::api::create_router;
+use governance_base::api::{create_router, AppState};
 use governance_base::config::AppConfig;
 use governance_base::db::create_pool;
 use governance_base::mqtt::start_mqtt_client;
 use tokio::net::TcpListener;
 use tokio::signal;
+use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
@@ -26,6 +27,9 @@ async fn main() {
     let pool = create_pool(&config.database_url).await;
     tracing::info!("Database connection pool created");
 
+    // Create broadcast channel for real-time point updates (MQTT → WebSocket)
+    let (broadcast_tx, _) = broadcast::channel::<String>(1024);
+
     // Create alarm engine with 5-minute suppression window
     let alarm_engine = AlarmEngine::new(300);
 
@@ -34,13 +38,15 @@ async fn main() {
     let mqtt_host = config.mqtt_host.clone();
     let mqtt_port = config.mqtt_port;
     let mqtt_alarm_engine = alarm_engine.clone();
+    let mqtt_broadcast_tx = broadcast_tx.clone();
     tokio::spawn(async move {
-        start_mqtt_client(mqtt_pool, &mqtt_host, mqtt_port, mqtt_alarm_engine).await;
+        start_mqtt_client(mqtt_pool, &mqtt_host, mqtt_port, mqtt_alarm_engine, mqtt_broadcast_tx).await;
     });
     tracing::info!("MQTT client started in background");
 
     // Build the Axum router
-    let app = create_router(pool)
+    let state = AppState { pool, broadcast_tx };
+    let app = create_router(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 

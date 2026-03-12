@@ -1,17 +1,21 @@
 use chrono::Utc;
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use sqlx::PgPool;
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::alarm::AlarmEngine;
+use crate::models::enums::PointQuality;
 
 /// Start the MQTT client that subscribes to building point topics,
-/// writes incoming values to the `point_values` table, and checks alarm rules.
+/// writes incoming values to the `point_values` table, checks alarm rules,
+/// and broadcasts point updates and alarm events to WebSocket clients.
 pub async fn start_mqtt_client(
     pool: PgPool,
     host: &str,
     port: u16,
     alarm_engine: AlarmEngine,
+    broadcast_tx: broadcast::Sender<String>,
 ) {
     let client_id = format!("governance-base-{}", Uuid::new_v4());
     let mut mqttoptions = MqttOptions::new(&client_id, host, port);
@@ -64,13 +68,14 @@ pub async fn start_mqtt_client(
 
                 // Write to point_values table
                 let insert_result = sqlx::query(
-                    r#"INSERT INTO point_values (point_id, ts, value_float, value_string, quality)
-                    VALUES ($1, $2, $3, $4, 'good')"#,
+                    r#"INSERT INTO point_values (point_id, ts, value_numeric, value_text, quality)
+                    VALUES ($1, $2, $3, $4, $5)"#,
                 )
                 .bind(point_id)
                 .bind(now)
                 .bind(value_float)
                 .bind(&payload)
+                .bind(PointQuality::Good)
                 .execute(&pool)
                 .await;
 
@@ -81,19 +86,46 @@ pub async fn start_mqtt_client(
 
                 // Update current value cache on the point record
                 let _ = sqlx::query(
-                    r#"UPDATE points SET current_value = $1, current_timestamp = $2,
-                        current_quality = 'good' WHERE id = $3"#,
+                    r#"UPDATE points SET current_value = $1, value_timestamp = $2,
+                        current_quality = $3 WHERE id = $4"#,
                 )
                 .bind(&payload)
                 .bind(now)
+                .bind(PointQuality::Good)
                 .bind(point_id)
                 .execute(&pool)
                 .await;
 
+                // Broadcast point update to WebSocket clients
+                let point_update = serde_json::json!({
+                    "type": "point_update",
+                    "point_id": point_id.to_string(),
+                    "value": &payload,
+                    "value_float": value_float,
+                    "ts": now.to_rfc3339(),
+                    "quality": "good"
+                });
+                // Ignore send errors (no active receivers is fine)
+                let _ = broadcast_tx.send(point_update.to_string());
+
                 // Check alarm rules
                 if let Some(val) = value_float {
-                    if let Err(e) = alarm_engine.check_point(point_id, val, &pool).await {
-                        tracing::error!("Alarm check failed for point {point_id}: {e}");
+                    match alarm_engine.check_point(point_id, val, &pool).await {
+                        Ok(Some(alarm_event)) => {
+                            // Broadcast alarm event to WebSocket clients
+                            let alarm_msg = serde_json::json!({
+                                "type": "alarm",
+                                "alarm_code": alarm_event.alarm_code,
+                                "point_id": alarm_event.point_id.to_string(),
+                                "severity": alarm_event.severity,
+                                "title": alarm_event.title,
+                            });
+                            let _ = broadcast_tx.send(alarm_msg.to_string());
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            tracing::error!("Alarm check failed for point {point_id}: {e}");
+                        }
                     }
                 }
 
