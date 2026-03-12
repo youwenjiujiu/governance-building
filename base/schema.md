@@ -10,6 +10,7 @@
 2. [实体关系图](#实体关系图)
 3. [核心实体 Schema](#核心实体-schema)
 4. [枚举值定义](#枚举值定义)
+5. [设计说明：行业扩展机制](#设计说明行业扩展机制)
 
 ---
 
@@ -29,13 +30,10 @@
 
 | 标准 | 采纳内容 |
 |------|---------|
-| **Project Haystack 4.0** | 标签化语义模型、Point 分类体系（sensor/cmd/sp）、单位标准化 |
-| **Brick Schema 1.3** | 空间拓扑关系（isPartOf/isLocationOf/feeds/hasPoint）、设备-点位关联 |
-| **IFC 4.3 (buildingSMART)** | 空间层级（IfcSite/IfcBuilding/IfcBuildingStorey/IfcSpace）、设备分类 |
-| **ASHRAE 223P** | 系统连接语义、流体/电气拓扑 |
+| **Haystack 4.0 / Brick 1.3** | 语义标签、空间拓扑、设备-点位关联 |
+| **IFC 4.3 / ASHRAE 223P** | 空间层级、系统连接语义 |
 | **ISO 16739 / ISO 52000** | 能效计算、气候区分类 |
-| **NIST OSCAL** | 合规规则建模思路 |
-| **RFC 5545 (iCalendar)** | 排程/日历/例外模型 |
+| **NIST OSCAL / RFC 5545** | 合规建模、排程/日历模型 |
 
 ---
 
@@ -48,7 +46,10 @@ Organization (组织/集团)
            ├──< Floor (楼层)                   [1:N]
            │    └──< Zone (区域/房间)           [1:N]
            │         ├──< Equipment (设备)      [N:M via zone_equipment]
-           │         └──< Point (点位)          [通过 Equipment/Component]
+           │         ├──< Point (点位)          [通过 Equipment/Component]
+           │         ├──< TrafficSensor (客流)  [1:N, Point 子类型]
+           │         ├──< CabinetAsset (机柜)   [1:N, 可选]
+           │         └──< EmissionMonitoring    [1:N]
            ├──< System (子系统)                 [1:N]
            │    └──< Equipment (设备)           [1:N]
            │         └──< Component (部件)      [1:N]
@@ -57,7 +58,22 @@ Organization (组织/集团)
            ├──< Schedule (排程)                 [1:N]
            ├──< EnergyMeter (能源计量)          [1:N]
            ├──< Scenario (场景模式)             [1:N]
+           ├──< Lease (租约)                    [1:N]
            └──  BuildingProfile (楼宇模板)      [N:1 引用]
+
+Tenant (租户)
+ ├──< Lease (租约)                             [1:N]
+ ├──> Space/Zone (租用区域)                     [N:M]
+ ├──> EnergyMeter (分户计量)                    [N:M]
+ └──< BillingRecord (计费记录)                  [1:N]
+
+BillingRule (计费规则)
+ ├──> Tenant                                   [N:M]
+ └──> EnergyMeter                              [N:M]
+
+RedundancyGroup (冗余组)
+ ├──> Equipment (主设备)                        [1:N]
+ └──> Equipment (备用设备)                      [1:N]
 
 AlarmRule (告警规则模板)
  └──> Alarm (告警实例)                         [1:N 触发]
@@ -87,12 +103,11 @@ ComplianceRule ──> Building / Organization      [合规约束]
 
 | 关系类型 | 语义 | 来源 |
 |---------|------|------|
-| `isPartOf` | 空间/物理从属 | Brick |
-| `isLocationOf` | 设备安装位置 | Brick |
-| `hasPoint` | 设备/部件拥有点位 | Brick/Haystack |
-| `feeds` | 系统/设备送风/供水/供电给区域 | Brick |
-| `monitors` | 告警规则监控点位 | 自定义 |
-| `triggers` | 场景触发动作 | 自定义 |
+| `isPartOf` / `isLocationOf` | 空间从属 / 设备安装位置 | Brick |
+| `hasPoint` / `feeds` | 拥有点位 / 供给关系 | Brick/Haystack |
+| `monitors` / `triggers` | 告警监控 / 场景触发 | 自定义 |
+| `leases` / `bills` | 租约关联 / 计费关联 | 自定义 |
+| `redundancy` | 冗余组关联 | 自定义 |
 
 ---
 
@@ -289,6 +304,13 @@ ComplianceRule ──> Building / Organization      [合规约束]
 | `barcode` | VARCHAR(100) | N | 条码/资产标签 | `"ASSET-2018-00456"` |
 | `qr_code_url` | VARCHAR(500) | N | 二维码链接 | `"https://asset.example.com/qr/00456"` |
 | `bim_guid` | VARCHAR(50) | N | BIM 模型中的 GUID | `"3F2504E0-4F89-11D3-9A0C-..."` |
+| `backup_equipment_id` | UUID (FK) | N | 主备关联（备用设备ID） | `"uuid-equip-002"` |
+| `redundancy_group_id` | UUID (FK) | N | 所属冗余组 | `"uuid-rg-001"` |
+| `power_chain_order` | INT | N | 供电链路顺序（1=最上游） | `3` |
+| `upstream_equipment_id` | UUID (FK) | N | 上游设备（表达链路关系） | `"uuid-equip-ups-001"` |
+| `medical_device_class` | ENUM('I','II','III') | N | 医疗设备分级（医院场景可选） | `null` |
+| `cold_chain_category` | VARCHAR(50) | N | 冷链分类（冷链场景可选） | `null` |
+| `registration_number` | VARCHAR(100) | N | 注册证号（医疗/特种设备） | `null` |
 | `tags` | VARCHAR(50)[] | N | Haystack 语义标签 | `["chiller", "centrifugal", "chilled-water"]` |
 | `metadata` | JSON | N | 扩展字段 | `{"refrigerant": "R134a"}` |
 | `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
@@ -406,6 +428,9 @@ ComplianceRule ──> Building / Organization      [合规约束]
 | `suppressed_by` | VARCHAR(100) | N | 抑制原因/规则 | `null` |
 | `work_order_id` | UUID (FK) | N | 关联工单 | `null` |
 | `repeat_count` | INT | N | 重复触发次数 | `1` |
+| `patient_impact` | ENUM(PatientImpact) | N | 患者影响等级（医院场景可选） | `null` |
+| `affected_scope` | ENUM(AffectedScope) | N | 影响范围 | `"EQUIPMENT"` |
+| `regulatory_report_required` | BOOLEAN | N | 是否需要法规上报 | `false` |
 | `tags` | VARCHAR(50)[] | N | 标签 | `["chiller", "temperature"]` |
 | `metadata` | JSON | N | 扩展字段 | `{"source": "BACnet-event"}` |
 | `created_at` | TIMESTAMP | Y | 创建时间 | `"2026-03-11T10:31:00Z"` |
@@ -489,13 +514,10 @@ ComplianceRule ──> Building / Organization      [合规约束]
 
 ```json
 {
-  "monday":    [{"start": "07:00", "end": "18:00", "value": "ON"}, {"start": "18:00", "end": "07:00", "value": "OFF"}],
-  "tuesday":   [{"start": "07:00", "end": "18:00", "value": "ON"}],
-  "wednesday": [{"start": "07:00", "end": "18:00", "value": "ON"}],
-  "thursday":  [{"start": "07:00", "end": "18:00", "value": "ON"}],
-  "friday":    [{"start": "07:00", "end": "18:00", "value": "ON"}],
-  "saturday":  [{"start": "09:00", "end": "13:00", "value": "ON"}],
-  "sunday":    []
+  "monday":  [{"start": "07:00", "end": "18:00", "value": "ON"}],
+  "tuesday": [{"start": "07:00", "end": "18:00", "value": "ON"}],
+  "saturday":[{"start": "09:00", "end": "13:00", "value": "ON"}],
+  "sunday":  []
 }
 ```
 
@@ -505,11 +527,10 @@ ComplianceRule ──> Building / Organization      [合规约束]
 {
   "holidays": [
     {"date": "2026-01-01", "name": "元旦", "schedule": []},
-    {"date_range": ["2026-01-28", "2026-02-04"], "name": "春节", "schedule": []},
-    {"date": "2026-04-04", "name": "清明节", "schedule": []}
+    {"date_range": ["2026-01-28", "2026-02-04"], "name": "春节", "schedule": []}
   ],
   "special_days": [
-    {"date": "2026-01-25", "name": "春节调休上班", "type": "WORKDAY", "schedule": [{"start": "07:00", "end": "18:00", "value": "ON"}]}
+    {"date": "2026-01-25", "name": "春节调休上班", "type": "WORKDAY"}
   ]
 }
 ```
@@ -517,14 +538,7 @@ ComplianceRule ──> Building / Organization      [合规约束]
 #### exceptions 示例
 
 ```json
-[
-  {
-    "name": "VIP接待日",
-    "date": "2026-03-15",
-    "priority": 100,
-    "schedule": [{"start": "06:00", "end": "22:00", "value": "ON"}]
-  }
-]
+[{"name": "VIP接待日", "date": "2026-03-15", "priority": 100, "schedule": [{"start": "06:00", "end": "22:00", "value": "ON"}]}]
 ```
 
 ---
@@ -552,8 +566,8 @@ ComplianceRule ──> Building / Organization      [合规约束]
 |------|------|
 | **分区键** | `point_id` + 时间分区（按月/按周） |
 | **压缩** | 超过 7 天的数据启用列式压缩 |
-| **降采样** | 原始 → 5min 平均/最大/最小 → 1h 聚合 → 1d 聚合 |
-| **保留策略** | 原始数据 90 天，5min 聚合 1 年，1h 聚合 3 年，1d 聚合 10 年 |
+| **降采样** | 原始 → 5min → 1h → 1d 聚合 |
+| **保留策略** | 原始 90 天，5min 1 年，1h 3 年，1d 10 年 |
 | **索引** | `point_id + ts` 主索引，`building_id + ts` 二级索引 |
 
 #### 聚合表结构
@@ -563,13 +577,9 @@ ComplianceRule ──> Building / Organization      [合规约束]
 | `point_id` | UUID | 点位 |
 | `bucket_start` | TIMESTAMP | 聚合起始时间 |
 | `bucket_size` | VARCHAR(10) | 聚合粒度：`"5m"` / `"1h"` / `"1d"` |
-| `avg` | DOUBLE | 平均值 |
-| `min` | DOUBLE | 最小值 |
-| `max` | DOUBLE | 最大值 |
-| `sum` | DOUBLE | 累计值 |
+| `avg` / `min` / `max` / `sum` | DOUBLE | 统计值 |
 | `count` | INT | 样本数 |
-| `first_value` | DOUBLE | 首值 |
-| `last_value` | DOUBLE | 末值 |
+| `first_value` / `last_value` | DOUBLE | 首/末值 |
 | `quality_good_pct` | DECIMAL(5,2) | 质量合格百分比 |
 
 ---
@@ -615,6 +625,11 @@ ComplianceRule ──> Building / Organization      [合规约束]
 | `consumed_assets` | JSON | N | 消耗备件列表 | `[]` |
 | `attachments` | JSON | N | 附件列表 | `[]` |
 | `comments` | JSON | N | 评论/沟通记录 | `[]` |
+| `change_type` | ENUM(WorkOrderChangeType) | N | 变更类型 | `"MAINTENANCE"` |
+| `risk_level` | ENUM(RiskLevel) | N | 风险等级 | `"LOW"` |
+| `cab_approval` | ENUM(CabApproval) | N | 变更审批状态 | `"NOT_REQUIRED"` |
+| `reviewer_id` | UUID (FK) | N | 审核人 | `null` |
+| `reviewed_at` | TIMESTAMP | N | 审核时间 | `null` |
 | `tags` | VARCHAR(50)[] | N | 标签 | `["chiller", "urgent"]` |
 | `metadata` | JSON | N | 扩展字段 | `{}` |
 | `updated_at` | TIMESTAMP | Y | 更新时间 | `"2026-03-11T10:31:00Z"` |
@@ -762,6 +777,8 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `error_message` | TEXT | N | 错误信息 | `null` |
 | `session_id` | VARCHAR(100) | N | 会话 ID | `"sess-abc-123"` |
 | `correlation_id` | VARCHAR(100) | N | 关联追踪 ID | `"trace-xyz-456"` |
+| `reviewer_id` | UUID (FK) | N | 审核人（双人审核场景） | `null` |
+| `reviewed_at` | TIMESTAMP | N | 审核时间 | `null` |
 | `metadata` | JSON | N | 扩展字段 | `{}` |
 
 > **存储策略**：审计日志为追加写入，不可修改/删除。按 `org_id + timestamp` 分区，保留期限由 ComplianceRule 定义（默认3年）。
@@ -799,15 +816,10 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 [
   {"system_type": "HVAC", "sub_type": "CHILLER_PLANT", "name_template": "冷站系统"},
   {"system_type": "HVAC", "sub_type": "AHU_SYSTEM", "name_template": "空调箱系统"},
-  {"system_type": "HVAC", "sub_type": "FCU_SYSTEM", "name_template": "风机盘管系统"},
   {"system_type": "LIGHTING", "sub_type": "GENERAL", "name_template": "照明系统"},
   {"system_type": "ELECTRICAL", "sub_type": "HV_DISTRIBUTION", "name_template": "高压配电系统"},
-  {"system_type": "ELECTRICAL", "sub_type": "LV_DISTRIBUTION", "name_template": "低压配电系统"},
-  {"system_type": "ELECTRICAL", "sub_type": "EMERGENCY_POWER", "name_template": "应急电源系统"},
   {"system_type": "FIRE_PROTECTION", "sub_type": "DETECTION", "name_template": "火灾探测系统"},
-  {"system_type": "FIRE_PROTECTION", "sub_type": "SUPPRESSION", "name_template": "灭火系统"},
   {"system_type": "SECURITY", "sub_type": "ACCESS_CONTROL", "name_template": "门禁系统"},
-  {"system_type": "SECURITY", "sub_type": "CCTV", "name_template": "视频监控系统"},
   {"system_type": "PLUMBING", "sub_type": "DOMESTIC_WATER", "name_template": "生活给水系统"},
   {"system_type": "ELEVATOR", "sub_type": "PASSENGER", "name_template": "客梯系统"}
 ]
@@ -852,7 +864,7 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
   "conditions": [
     {"type": "ALARM", "alarm_category": "FIRE", "severity_gte": "CRITICAL"},
     {"type": "POINT_VALUE", "point_brick_class": "Fire_Alarm_Sensor", "operator": "==", "value": true},
-    {"type": "MANUAL", "authorized_roles": ["FACILITY_MANAGER", "SECURITY_CHIEF"]}
+    {"type": "MANUAL", "authorized_roles": ["FACILITY_MANAGER"]}
   ]
 }
 ```
@@ -861,12 +873,10 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 
 ```json
 [
-  {"order": 1, "type": "WRITE_POINT", "target": {"brick_class": "Smoke_Control_Damper_Command"}, "value": "OPEN", "delay_s": 0},
+  {"order": 1, "type": "WRITE_POINT", "target": {"brick_class": "Smoke_Control_Damper_Command"}, "value": "OPEN"},
   {"order": 2, "type": "WRITE_POINT", "target": {"system_type": "HVAC"}, "value": "OFF", "delay_s": 5},
-  {"order": 3, "type": "WRITE_POINT", "target": {"brick_class": "Emergency_Lighting_Command"}, "value": "ON", "delay_s": 0},
-  {"order": 4, "type": "WRITE_POINT", "target": {"equipment_type": "ELEVATOR"}, "value": "RECALL_TO_GROUND", "delay_s": 10},
-  {"order": 5, "type": "NOTIFICATION", "channels": ["SMS", "PUSH", "PA_SYSTEM"], "template": "FIRE_EVACUATION"},
-  {"order": 6, "type": "CREATE_WORK_ORDER", "template": "WO-FIRE-RESPONSE", "priority": "EMERGENCY"}
+  {"order": 3, "type": "NOTIFICATION", "channels": ["SMS","PUSH","PA_SYSTEM"], "template": "FIRE_EVACUATION"},
+  {"order": 4, "type": "CREATE_WORK_ORDER", "template": "WO-FIRE-RESPONSE", "priority": "EMERGENCY"}
 ]
 ```
 
@@ -881,6 +891,12 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `name` | VARCHAR(200) | Y | 规则名称 | `"消防系统日志保留要求"` |
 | `description` | TEXT | N | 规则描述 | `"根据GB 25506-2010，消防系统运行记录保留不少于1年"` |
 | `regulation_ref` | VARCHAR(200) | N | 法规引用 | `"GB 25506-2010 第5.3条"` |
+| `regulation_version` | VARCHAR(50) | N | 法规版本号 | `"2010"` |
+| `effective_date` | DATE | N | 法规生效日期 | `"2011-01-01"` |
+| `expiry_date` | DATE | N | 法规失效日期 | `null` |
+| `food_safety_category` | VARCHAR(50) | N | 食品安全分类（商场/酒店可选） | `null` |
+| `sla_target` | VARCHAR(100) | N | SLA 目标值（数据中心可选） | `null` |
+| `measurement_method` | VARCHAR(200) | N | 测量方法 | `"自动采集+人工抽检"` |
 | `country` | VARCHAR(3) | Y | 适用国家 | `"CHN"` |
 | `region` | VARCHAR(50) | N | 适用地区 | `null` |
 | `industry` | VARCHAR(50) | N | 适用行业 | `null` |
@@ -901,15 +917,7 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 #### rule_config 示例
 
 ```json
-{
-  "retention": {
-    "target_data": ["ALARM", "AUDIT_LOG", "TREND"],
-    "target_system_types": ["FIRE_PROTECTION"],
-    "min_retention_days": 365,
-    "archive_required": true,
-    "archive_format": "CSV_ZIP"
-  }
-}
+{"retention": {"target_data": ["ALARM","AUDIT_LOG","TREND"], "target_system_types": ["FIRE_PROTECTION"], "min_retention_days": 365, "archive_required": true}}
 ```
 
 ---
@@ -954,11 +962,10 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
   "effective_from": "2025-07-01",
   "demand_charge": {"rate": 38.00, "unit": "CNY/kVA/month"},
   "energy_charges": [
-    {"period": "PEAK",   "time_ranges": [["10:00","15:00"], ["18:00","21:00"]], "rate": 1.2647, "unit": "CNY/kWh"},
-    {"period": "FLAT",   "time_ranges": [["07:00","10:00"], ["15:00","18:00"], ["21:00","23:00"]], "rate": 0.7875, "unit": "CNY/kWh"},
-    {"period": "VALLEY", "time_ranges": [["23:00","07:00"]], "rate": 0.3150, "unit": "CNY/kWh"}
-  ],
-  "power_factor_adjustment": {"target": 0.90, "penalty_rate": 0.005, "reward_rate": 0.0025}
+    {"period": "PEAK", "time_ranges": [["10:00","15:00"],["18:00","21:00"]], "rate": 1.2647},
+    {"period": "FLAT", "time_ranges": [["07:00","10:00"],["15:00","18:00"]], "rate": 0.7875},
+    {"period": "VALLEY", "time_ranges": [["23:00","07:00"]], "rate": 0.3150}
+  ]
 }
 ```
 
@@ -993,6 +1000,165 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `max_retries` | INT | Y | 最大重试次数 | `3` |
 | `metadata` | JSON | N | 扩展字段 | `{"sms_provider": "aliyun", "msg_id": "..."}` |
 | `created_at` | TIMESTAMP | Y | 创建时间 | `"2026-03-11T10:31:00Z"` |
+
+---
+
+### 23. Tenant（租户）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-tenant-001"` |
+| `org_id` | UUID (FK) | Y | 所属组织 | `"uuid-org-001"` |
+| `name` | VARCHAR(200) | Y | 租户名称 | `"星巴克中国"` |
+| `type` | ENUM(TenantType) | Y | 租户类型 | `"ENTERPRISE"` |
+| `contact_name` | VARCHAR(100) | N | 联系人 | `"李四"` |
+| `contact_phone` | VARCHAR(30) | N | 联系电话 | `"+86-13900139000"` |
+| `contact_email` | VARCHAR(200) | N | 联系邮箱 | `"lisi@starbucks.cn"` |
+| `lease_start` | DATE | N | 最早租约开始日期 | `"2024-01-01"` |
+| `lease_end` | DATE | N | 最晚租约结束日期 | `"2029-12-31"` |
+| `space_ids` | UUID[] | N | 租用空间/区域列表 | `["uuid-zone-101","uuid-zone-102"]` |
+| `energy_meter_ids` | UUID[] | N | 分户计量表列表 | `["uuid-meter-t01"]` |
+| `metadata` | JSON | N | 扩展字段 | `{"industry": "F&B"}` |
+| `status` | ENUM(TenantStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 24. Lease（租约）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-lease-001"` |
+| `tenant_id` | UUID (FK) | Y | 租户 | `"uuid-tenant-001"` |
+| `building_id` | UUID (FK) | Y | 所属楼宇 | `"uuid-bldg-001"` |
+| `spaces` | UUID[] | Y | 租用空间列表 | `["uuid-zone-101"]` |
+| `start_date` | DATE | Y | 起始日期 | `"2024-01-01"` |
+| `end_date` | DATE | Y | 结束日期 | `"2029-12-31"` |
+| `billing_model` | VARCHAR(50) | N | 计费模式 | `"AREA_BASED"` |
+| `power_limit_kw` | DECIMAL(10,2) | N | 用电限额 (kW) | `50.00` |
+| `metadata` | JSON | N | 扩展字段 | `{"deposit": 50000}` |
+| `status` | ENUM(LeaseStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 25. BillingRule（计费规则）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-br-001"` |
+| `name` | VARCHAR(200) | Y | 规则名称 | `"商场标准电费计费"` |
+| `type` | ENUM(BillingType) | Y | 计费类型 | `"BY_USAGE"` |
+| `rate_table` | JSON | Y | 费率表 | `{"unit_price": 1.05, "unit": "CNY/kWh"}` |
+| `shared_cost_algorithm` | VARCHAR(50) | N | 公摊算法 | `"BY_AREA_RATIO"` |
+| `overtime_rate` | DECIMAL(8,4) | N | 超时费率 | `1.5000` |
+| `tenant_ids` | UUID[] | N | 适用租户列表 | `["uuid-tenant-001"]` |
+| `energy_meter_ids` | UUID[] | N | 关联表计列表 | `["uuid-meter-t01"]` |
+| `metadata` | JSON | N | 扩展字段 | `{}` |
+| `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 26. BillingRecord（计费记录）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-bill-001"` |
+| `tenant_id` | UUID (FK) | Y | 租户 | `"uuid-tenant-001"` |
+| `billing_rule_id` | UUID (FK) | N | 计费规则 | `"uuid-br-001"` |
+| `period` | VARCHAR(20) | Y | 账期 | `"2026-02"` |
+| `meter_readings` | JSON | Y | 抄表读数 | `[{"meter_id":"uuid-meter-t01","start":1000,"end":1500}]` |
+| `amount` | DECIMAL(12,2) | Y | 自用费用 | `525.00` |
+| `shared_cost` | DECIMAL(12,2) | N | 公摊费用 | `120.00` |
+| `total` | DECIMAL(12,2) | Y | 合计金额 | `645.00` |
+| `currency` | VARCHAR(3) | Y | 币种 | `"CNY"` |
+| `metadata` | JSON | N | 扩展字段 | `{}` |
+| `status` | ENUM(BillingStatus) | Y | 状态 | `"DRAFT"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2026-03-01T00:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2026-03-01T00:00:00Z"` |
+
+---
+
+### 27. TrafficSensor（客流传感器）
+
+> 作为 Point 的一种特殊子类型，扩展了客流统计专属字段。
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键（同时也是 Point.id） | `"uuid-traffic-001"` |
+| `name` | VARCHAR(200) | Y | 传感器名称 | `"1F南门客流计"` |
+| `zone_id` | UUID (FK) | Y | 所属区域 | `"uuid-zone-lobby"` |
+| `building_id` | UUID (FK) | Y | 所属楼宇 | `"uuid-bldg-001"` |
+| `sensor_type` | ENUM(TrafficSensorType) | Y | 传感器类型 | `"VIDEO"` |
+| `direction` | ENUM(TrafficDirection) | Y | 统计方向 | `"BIDIRECTIONAL"` |
+| `metadata` | JSON | N | 扩展字段 | `{"camera_id": "CAM-001"}` |
+| `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 28. CabinetAsset（机柜资产）— 数据中心专用可选
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-cab-001"` |
+| `name` | VARCHAR(200) | Y | 机柜名称 | `"A-01-01"` |
+| `zone_id` | UUID (FK) | Y | 所属区域（白空间） | `"uuid-zone-ws-01"` |
+| `building_id` | UUID (FK) | Y | 所属楼宇 | `"uuid-bldg-dc01"` |
+| `total_u` | SMALLINT | Y | 总 U 位数 | `42` |
+| `used_u` | SMALLINT | N | 已用 U 位 | `36` |
+| `power_capacity_kw` | DECIMAL(8,2) | N | 额定功率 (kW) | `10.00` |
+| `actual_power_kw` | DECIMAL(8,2) | N | 实际功率 (kW) | `7.50` |
+| `cooling_capacity_kw` | DECIMAL(8,2) | N | 散热能力 (kW) | `12.00` |
+| `network_ports` | INT | N | 网络端口数 | `48` |
+| `weight_limit_kg` | DECIMAL(8,2) | N | 承重上限 (kg) | `1200.00` |
+| `metadata` | JSON | N | 扩展字段 | `{"row": "A", "position": 1}` |
+| `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 29. RedundancyGroup（冗余组）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-rg-001"` |
+| `name` | VARCHAR(200) | Y | 冗余组名称 | `"UPS-A冗余组"` |
+| `building_id` | UUID (FK) | Y | 所属楼宇 | `"uuid-bldg-001"` |
+| `type` | ENUM(RedundancyType) | Y | 冗余类型 | `"N_PLUS_1"` |
+| `primary_equipment_ids` | UUID[] | Y | 主设备列表 | `["uuid-equip-ups-01","uuid-equip-ups-02"]` |
+| `standby_equipment_ids` | UUID[] | Y | 备用设备列表 | `["uuid-equip-ups-03"]` |
+| `auto_failover` | BOOLEAN | Y | 是否自动故障切换 | `true` |
+| `metadata` | JSON | N | 扩展字段 | `{}` |
+| `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
+
+---
+
+### 30. EmissionMonitoring（排放监测）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `id` | UUID | Y | 主键 | `"uuid-emission-001"` |
+| `name` | VARCHAR(200) | Y | 监测点名称 | `"厨房油烟监测-1号排放口"` |
+| `building_id` | UUID (FK) | Y | 所属楼宇 | `"uuid-bldg-001"` |
+| `zone_id` | UUID (FK) | N | 关联区域 | `"uuid-zone-kitchen"` |
+| `type` | ENUM(EmissionType) | Y | 排放类型 | `"FUME"` |
+| `regulation_standard` | VARCHAR(200) | N | 适用法规 | `"GB 18483-2001"` |
+| `limit_value` | DECIMAL(12,4) | N | 排放限值 | `2.0000` |
+| `unit` | VARCHAR(20) | N | 计量单位 | `"mg/m³"` |
+| `point_id` | UUID (FK) | N | 关联监测点位 | `"uuid-point-emission-01"` |
+| `metadata` | JSON | N | 扩展字段 | `{"exhaust_outlet_id": "EX-01"}` |
+| `status` | ENUM(EntityStatus) | Y | 状态 | `"ACTIVE"` |
+| `created_at` | TIMESTAMP | Y | 创建时间 | `"2025-01-15T08:00:00Z"` |
+| `updated_at` | TIMESTAMP | Y | 更新时间 | `"2025-06-01T10:30:00Z"` |
 
 ---
 
@@ -1087,6 +1253,25 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `PRODUCTION` | 生产车间 |
 | `CLEANROOM` | 洁净室 |
 | `OUTDOOR` | 室外区域 |
+| `ICU` | 重症监护室 |
+| `ISOLATION_ROOM` | 隔离病房 |
+| `PHARMACY` | 药房 |
+| `BLOOD_BANK` | 血库 |
+| `RADIOLOGY` | 放射科 |
+| `RETAIL_UNIT` | 零售单元（商场） |
+| `FOOD_COURT` | 美食广场 |
+| `ATRIUM` | 中庭 |
+| `LOADING_DOCK` | 装卸区 |
+| `COLD_STORAGE` | 冷库 |
+| `WHITE_SPACE` | 白空间（数据中心机房） |
+| `GRAY_SPACE` | 灰空间（数据中心配套） |
+| `BATTERY_ROOM` | 电池室 |
+| `GENERATOR_YARD` | 发电机场地 |
+| `NOC` | 网络运营中心 |
+| `BANQUET_HALL` | 宴会厅 |
+| `SPA` | SPA/水疗 |
+| `SWIMMING_POOL` | 游泳池 |
+| `LAUNDRY` | 洗衣房 |
 | `OTHER` | 其他 |
 
 ### SystemType（子系统类型）
@@ -1105,6 +1290,19 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `NETWORK` | 网络/通讯 |
 | `RENEWABLE` | 可再生能源 |
 | `WASTE` | 废弃物处理 |
+| `MEDICAL_GAS` | 医用气体 |
+| `CLEAN_ROOM` | 洁净室系统 |
+| `COLD_CHAIN` | 冷链系统 |
+| `RADIATION_PROTECTION` | 辐射防护 |
+| `PURIFIED_WATER` | 纯化水系统 |
+| `KITCHEN_EXHAUST` | 厨房排烟 |
+| `REFRIGERATION` | 制冷系统 |
+| `ESCALATOR_ELEVATOR` | 扶梯/电梯系统 |
+| `DRAINAGE` | 排水系统 |
+| `LIQUID_COOLING` | 液冷系统 |
+| `PRECISION_COOLING` | 精密空调 |
+| `POWER_DISTRIBUTION` | 配电系统 |
+| `UPS_GENERATOR` | UPS/发电机系统 |
 | `OTHER` | 其他 |
 
 ### EquipmentType（设备类型）
@@ -1145,6 +1343,37 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `DAMPER` | 风阀 |
 | `SOLAR_PANEL` | 太阳能板 |
 | `BATTERY_STORAGE` | 储能电池 |
+| `O2_MANIFOLD` | 氧气汇流排 |
+| `VACUUM_PUMP` | 真空泵 |
+| `MEDICAL_AIR_COMPRESSOR` | 医用空压机 |
+| `HEPA_UNIT` | HEPA 过滤单元 |
+| `PARTICLE_COUNTER` | 粒子计数器 |
+| `BLOOD_FRIDGE` | 血液冰箱 |
+| `PHARMACY_FRIDGE` | 药品冰箱 |
+| `ULTRA_LOW_FREEZER` | 超低温冰箱 |
+| `RADIATION_MONITOR` | 辐射监测仪 |
+| `RO_UNIT` | 反渗透装置 |
+| `EXHAUST_FAN` | 排烟风机 |
+| `ESP_UNIT` | 静电油烟净化器 |
+| `WALK_IN_COOLER` | 步入式冷库 |
+| `DISPLAY_CABINET` | 展示柜/冷柜 |
+| `ESCALATOR` | 扶梯 |
+| `SUMP_PUMP` | 污水泵 |
+| `CRAC` | 机房精密空调 |
+| `CRAH` | 机房空调处理机 |
+| `CDU` | 冷量分配单元 |
+| `PDU` | 配电单元 |
+| `ATS` | 自动转换开关 |
+| `STS` | 静态转换开关 |
+| `UPS_UNIT` | UPS 单元 |
+| `DIESEL_GENERATOR` | 柴油发电机 |
+| `VESDA_DETECTOR` | 极早期烟雾探测 |
+| `LEAK_DETECTION_CABLE` | 漏液检测线缆 |
+| `HOT_WATER_BOILER` | 热水锅炉 |
+| `HEAT_PUMP_DHW` | 热泵热水器 |
+| `POOL_FILTER_PUMP` | 泳池过滤泵 |
+| `POOL_HEATER` | 泳池加热器 |
+| `CHEMICAL_DOSING` | 加药装置 |
 | `OTHER` | 其他 |
 
 ### ComponentType（部件类型）
@@ -1297,6 +1526,21 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `ENVIRONMENTAL` | 环境异常 |
 | `MAINTENANCE` | 维保提醒 |
 | `SYSTEM` | 系统/软件告警 |
+| `MEDICAL_GAS` | 医用气体 |
+| `CLEAN_ROOM` | 洁净室 |
+| `COLD_CHAIN` | 冷链 |
+| `RADIATION` | 辐射 |
+| `WATER_QUALITY` | 水质 |
+| `KITCHEN_EXHAUST` | 厨房排烟 |
+| `REFRIGERATION` | 制冷 |
+| `CROWD_SAFETY` | 客流安全 |
+| `FLOOD` | 水浸 |
+| `COOLING` | 制冷/散热 |
+| `POWER` | 电力 |
+| `WATER_LEAK` | 漏水 |
+| `CAPACITY` | 容量 |
+| `POOL_WATER` | 泳池水质 |
+| `HOT_WATER` | 热水 |
 
 ### AlarmState（告警状态）
 
@@ -1585,6 +1829,7 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `DINGTALK` | 钉钉 |
 | `WEBHOOK` | Webhook |
 | `PA_SYSTEM` | 广播系统 |
+| `PA_BROADCAST` | 紧急广播（全楼/全区域） |
 | `IN_APP` | 站内信 |
 
 ### NotificationPriority（通知优先级）
@@ -1608,6 +1853,145 @@ OPEN / ASSIGNED / IN_PROGRESS → CANCELLED
 | `FAILED` | 发送失败 |
 | `CANCELLED` | 已取消 |
 
+### WorkOrderChangeType（工单变更类型）
+
+| 值 | 说明 |
+|----|------|
+| `MAINTENANCE` | 常规维护 |
+| `EMERGENCY` | 紧急变更 |
+| `PLANNED_CHANGE` | 计划变更 |
+| `STANDARD_CHANGE` | 标准变更 |
+| `CAB_REQUIRED` | 需 CAB 审批变更 |
+
+### RiskLevel（风险等级）
+
+| 值 | 说明 |
+|----|------|
+| `LOW` | 低风险 |
+| `MEDIUM` | 中风险 |
+| `HIGH` | 高风险 |
+| `CRITICAL` | 极高风险 |
+
+### CabApproval（变更审批状态）
+
+| 值 | 说明 |
+|----|------|
+| `NOT_REQUIRED` | 不需要审批 |
+| `PENDING` | 待审批 |
+| `APPROVED` | 已批准 |
+| `REJECTED` | 已拒绝 |
+
+### PatientImpact（患者影响等级 — 医院场景可选）
+
+| 值 | 说明 |
+|----|------|
+| `NONE` | 无影响 |
+| `LOW` | 低影响 |
+| `MEDIUM` | 中等影响 |
+| `HIGH` | 高影响 |
+| `CRITICAL` | 危及生命 |
+
+### AffectedScope（影响范围）
+
+| 值 | 说明 |
+|----|------|
+| `EQUIPMENT` | 单台设备 |
+| `ZONE` | 单个区域 |
+| `FLOOR` | 整层 |
+| `BUILDING` | 整栋楼宇 |
+| `CAMPUS` | 整个园区 |
+
+### TenantType（租户类型）
+
+| 值 | 说明 |
+|----|------|
+| `ENTERPRISE` | 企业 |
+| `INDIVIDUAL` | 个人 |
+| `GOVERNMENT` | 政府/公共机构 |
+
+### TenantStatus（租户状态）
+
+| 值 | 说明 |
+|----|------|
+| `ACTIVE` | 在租 |
+| `EXPIRED` | 已到期 |
+| `PENDING` | 待入驻 |
+
+### LeaseStatus（租约状态）
+
+| 值 | 说明 |
+|----|------|
+| `ACTIVE` | 生效中 |
+| `EXPIRED` | 已到期 |
+| `PENDING` | 待生效 |
+| `TERMINATED` | 已终止 |
+
+### BillingType（计费类型）
+
+| 值 | 说明 |
+|----|------|
+| `BY_AREA` | 按面积 |
+| `BY_COOLING` | 按冷量 |
+| `BY_TIME` | 按时间 |
+| `BY_USAGE` | 按实际用量 |
+| `MIXED` | 混合计费 |
+
+### BillingStatus（计费记录状态）
+
+| 值 | 说明 |
+|----|------|
+| `DRAFT` | 草稿 |
+| `CONFIRMED` | 已确认 |
+| `PAID` | 已支付 |
+
+### TrafficSensorType（客流传感器类型）
+
+| 值 | 说明 |
+|----|------|
+| `INFRARED` | 红外 |
+| `VIDEO` | 视频 |
+| `WIFI` | WiFi 探针 |
+| `BLUETOOTH` | 蓝牙 |
+
+### TrafficDirection（客流统计方向）
+
+| 值 | 说明 |
+|----|------|
+| `IN` | 仅进 |
+| `OUT` | 仅出 |
+| `BIDIRECTIONAL` | 双向 |
+
+### RedundancyType（冗余类型）
+
+| 值 | 说明 |
+|----|------|
+| `N_PLUS_1` | N+1 冗余 |
+| `TWO_N` | 2N 冗余 |
+| `TWO_N_PLUS_1` | 2N+1 冗余 |
+
+### EmissionType（排放类型）
+
+| 值 | 说明 |
+|----|------|
+| `FUME` | 油烟 |
+| `EXHAUST_GAS` | 废气 |
+| `WASTEWATER` | 废水 |
+| `NOISE` | 噪音 |
+
 ---
 
-*本文档版本 1.0.0 — 公共基础层数据模型定义，适用于所有行业 Container。*
+## 设计说明：行业扩展机制
+
+本 base schema 作为所有行业 Container 的公共底层，通过以下四种机制支持行业差异化扩展：
+
+**1. 必选字段 vs 可选字段** — 核心字段（`id`、`name`、`status`、`building_id`）为必选，所有行业均需填写。行业专属字段（如 `medical_device_class`、`cold_chain_category`、`patient_impact`、`food_safety_category`、`sla_target`）为可选，在非目标行业场景下值为 `null`，既保证 schema 统一，又避免非相关行业被迫填写无意义字段。
+
+**2. metadata JSON 字段用于极端定制** — 每个实体都包含 `metadata: JSON` 可选字段，用于存放无法被通用字段覆盖的定制数据（如 `{"infection_zone_level":"P3"}`、`{"tier_level":"III","pue_target":1.3}`）。`metadata` 不做强校验，由上层 Container 自行定义并解析其结构。
+
+**3. 枚举值可按行业筛选显示** — 枚举表包含所有行业可能需要的值。前端/API 层应根据当前楼宇的 `building_type` 进行筛选，只展示该行业相关的枚举子集。例如医院显示 `MEDICAL_GAS`、`CLEAN_ROOM` 等，隐藏 `LIQUID_COOLING`；数据中心反之。
+
+**4. BuildingProfile 模板决定字段/枚举可见性** — `BuildingProfile` 作为行业模板可声明：可见枚举子集、必填字段覆盖（如医院模板要求 `medical_device_class` 必填）、默认值预设、关联规则/排程/场景。新楼宇上线时选择模板即可一键实例化所有行业配置。
+
+---
+
+*本文档版本 2.0.0 — 公共基础层数据模型定义，适用于所有行业 Container。*
